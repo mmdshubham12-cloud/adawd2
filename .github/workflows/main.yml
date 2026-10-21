@@ -1,0 +1,86 @@
+name: Build Security System (Windows EXE + Android APK)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Locate windows_core, Download YOLOv8 Weights & Cloudflared, Build EXE
+        shell: pwsh
+        run: |
+          $winDir = Get-ChildItem -Path . -Recurse -Filter "main.py" | Select-Object -First 1 -ExpandProperty DirectoryName
+          if (-not $winDir) {
+            Write-Error "Could not find windows_core/main.py in the repository!"
+            exit 1
+          }
+          Set-Location $winDir
+          New-Item -ItemType Directory -Force -Path "static" | Out-Null
+          New-Item -ItemType Directory -Force -Path "templates" | Out-Null
+
+          Write-Host "Downloading YOLOv8n weights so offline/filtered PCs never fail..."
+          Invoke-WebRequest -Uri "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt" -OutFile "yolov8n.pt"
+
+          Write-Host "Downloading Cloudflared for zero-VPS remote access..."
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          pyinstaller --noconfirm --onedir --windowed --name "KiarashSecurityCore" --add-data "templates;templates" --add-data "yolov8n.pt;." --add-binary "cloudflared.exe;." main.py
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE/out_win" | Out-Null
+          Copy-Item -Path "dist/KiarashSecurityCore/*" -Destination "$env:GITHUB_WORKSPACE/out_win" -Recurse -Force
+          Copy-Item -Path "yolov8n.pt" -Destination "$env:GITHUB_WORKSPACE/out_win/" -Force
+          Copy-Item -Path "cloudflared.exe" -Destination "$env:GITHUB_WORKSPACE/out_win/" -Force
+
+      - name: Upload Windows EXE Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-Security-Core-EXE
+          path: out_win/
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
+
+      - name: Locate android_camera_node and Build Debug APK
+        run: |
+          ANDROID_DIR=$(find . -name "settings.gradle" -printf "%h\n" | head -n 1)
+          if [ -z "$ANDROID_DIR" ]; then
+            echo "Error: Could not find android_camera_node/settings.gradle!"
+            exit 1
+          fi
+          cd "$ANDROID_DIR"
+          gradle assembleDebug
+          mkdir -p "$GITHUB_WORKSPACE/out_apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/out_apk/Kiarash-Android5-Camera-Node.apk"
+
+      - name: Upload Android Camera Node APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android5-Camera-Bridge-APK
+          path: out_apk/Kiarash-Android5-Camera-Node.apk
