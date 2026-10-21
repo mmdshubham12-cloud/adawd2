@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="#0F172A">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="نود دوربین و پل اضطراری کیارش (Android 5.0.2+)"
+        android:textColor="#38BDF8"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <EditText
+        android:id="@+id/edtWifiSsid"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="نام وای‌فای (SSID) جهت اتصال دائمی"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#94A3B8"
+        android:layout_marginBottom="10dp" />
+
+    <EditText
+        android:id="@+id/edtWifiPass"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="رمز وای‌فای"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#94A3B8"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnSaveStart"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="ذخیره وای‌فای و شروع سرویس دائمی ۲۴/۷"
+        android:background="#16A34A"
+        android:textColor="#FFFFFF"
+        android:padding="12dp" />
+
+    <TextView
+        android:id="@+id/txtStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="وضعیت: آماده به کار | WakeLock فعال"
+        android:textColor="#E2E8F0"
+        android:layout_marginTop="20dp"
+        android:textSize="14sp" />
+
+</LinearLayout>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>پنل کنترل هوشمند دزدگیر و دوربین</title>
+  <style>
+    * { box-sizing: border-box; font-family: Tahoma, Arial, sans-serif; }
+    body {
+      margin: 0; padding: 0;
+      background-color: #0f172a; color: #f8fafc;
+    }
+    header {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      padding: 16px; text-align: center;
+      border-bottom: 1px solid #334155;
+    }
+    header h1 { margin: 0; font-size: 20px; color: #38bdf8; }
+    .container { max-width: 900px; margin: 16px auto; padding: 0 12px; }
+    .card {
+      background: #1e293b; border-radius: 12px;
+      padding: 16px; margin-bottom: 16px;
+      border: 1px solid #334155;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .status-bar {
+      display: flex; flex-wrap: wrap; justify-content: space-between;
+      align-items: center; gap: 10px;
+    }
+    .badge {
+      padding: 8px 14px; border-radius: 8px; font-weight: bold; font-size: 14px;
+    }
+    .badge-armed { background: #dc2626; color: #fff; }
+    .badge-disarmed { background: #16a34a; color: #fff; }
+    .badge-siren { background: #f59e0b; color: #000; }
+    .btn-group {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px;
+    }
+    button {
+      flex: 1; min-width: 130px; padding: 12px 16px;
+      border: none; border-radius: 8px; font-size: 14px;
+      font-weight: bold; cursor: pointer; color: #fff;
+      transition: opacity 0.2s;
+    }
+    button:active { opacity: 0.8; }
+    .btn-arm { background: #2563eb; }
+    .btn-disarm { background: #475569; }
+    .btn-stop-siren { background: #dc2626; }
+    .video-box {
+      width: 100%; background: #000; border-radius: 8px;
+      overflow: hidden; text-align: center; min-height: 240px;
+      position: relative;
+    }
+    .video-box img, .video-box video {
+      width: 100%; max-height: 480px; object-fit: contain;
+    }
+    select, input {
+      width: 100%; padding: 10px; margin-top: 8px;
+      border-radius: 8px; border: 1px solid #475569;
+      background: #0f172a; color: #fff;
+    }
+    .log-box {
+      background: #0f172a; padding: 10px; border-radius: 8px;
+      height: 160px; overflow-y: auto; font-size: 12px;
+      line-height: 1.6; color: #94a3b8; direction: ltr; text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>سیستم امنیتی و نظارت هوشمند کیارش</h1>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <div class="status-bar">
+        <div>وضعیت سیستم: <span id="armBadge" class="badge badge-disarmed">غیرفعال</span></div>
+        <div>وضعیت آژیر: <span id="sirenBadge" class="badge">خاموش</span></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn-arm" onclick="setArm(true)">فعال‌سازی دزدگیر</button>
+        <button class="btn-disarm" onclick="setArm(false)">غیرفعال‌سازی دزدگیر</button>
+        <button class="btn-stop-siren" onclick="stopSiren()">قطع فوری آژیر!</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>پخش زنده دوربین (Live Stream)</h3>
+      <div class="btn-group" style="margin-bottom: 12px;">
+        <button class="btn-arm" onclick="toggleLive(true)">شروع پخش زنده</button>
+        <button class="btn-disarm" onclick="toggleLive(false)">توقف پخش زنده</button>
+      </div>
+      <div class="video-box">
+        <img id="liveImg" src="" alt="برای مشاهده پخش زنده کلیک کنید" style="display:none;" />
+        <p id="livePlaceholder" style="padding-top: 90px; color: #64748b;">پخش زنده متوقف است</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>بازبینی فیلم‌های ضبط شده (تاریخ شمسی)</h3>
+      <label>انتخاب تاریخ شمسی (مثلا 1405-07-29):</label>
+      <select id="dateSelect" onchange="loadVideosByDate()"></select>
+      <label>انتخاب فایل ویدیو (قطعات یک ساعته و رخدادها):</label>
+      <select id="videoSelect" onchange="playSelectedVideo()"></select>
+      <div class="video-box" style="margin-top: 12px;">
+        <video id="playbackVideo" controls></video>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>گزارش لحظه‌ای سیستم (Logs)</h3>
+      <div id="logBox" class="log-box">در حال دریافت گزارش‌ها...</div>
+    </div>
+  </div>
+
+  <script>
+    function refreshStatus() {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", "/api/status", true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+          var data = JSON.parse(xhr.responseText);
+          var armBadge = document.getElementById("armBadge");
+          if (data.armed) {
+            armBadge.className = "badge badge-armed";
+            armBadge.innerText = "فعال (Armed)";
+          } else {
+            armBadge.className = "badge badge-disarmed";
+            armBadge.innerText = "غیرفعال (Disarmed)";
+          }
+          var sirenBadge = document.getElementById("sirenBadge");
+          if (data.siren_active) {
+            sirenBadge.className = "badge badge-siren";
+            sirenBadge.innerText = "در حال آژیر کشیدن!";
+          } else {
+            sirenBadge.className = "badge";
+            sirenBadge.innerText = "خاموش";
+          }
+          var logBox = document.getElementById("logBox");
+          logBox.innerHTML = data.logs.join("<br>");
+          logBox.scrollTop = logBox.scrollHeight;
+        }
+      };
+      xhr.send();
+    }
+
+    function setArm(state) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/arm?state=" + (state ? "1" : "0"), true);
+      xhr.onload = refreshStatus;
+      xhr.send();
+    }
+
+    function stopSiren() {
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/stop_siren", true);
+      xhr.onload = refreshStatus;
+      xhr.send();
+    }
+
+    function toggleLive(show) {
+      var img = document.getElementById("liveImg");
+      var ph = document.getElementById("livePlaceholder");
+      if (show) {
+        img.src = "/api/live_stream?t=" + new Date().getTime();
+        img.style.display = "block";
+        ph.style.display = "none";
+      } else {
+        img.src = "";
+        img.style.display = "none";
+        ph.style.display = "block";
+      }
+    }
+
+    function loadDates() {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", "/api/recordings/dates", true);
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          var dates = JSON.parse(xhr.responseText).dates;
+          var sel = document.getElementById("dateSelect");
+          sel.innerHTML = '<option value="">-- انتخاب تاریخ --</option>';
+          for (var i = 0; i < dates.length; i++) {
+            sel.innerHTML += '<option value="' + dates[i] + '">' + dates[i] + '</option>';
+          }
+        }
+      };
+      xhr.send();
+    }
+
+    function loadVideosByDate() {
+      var date = document.getElementById("dateSelect").value;
+      if (!date) return;
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", "/api/recordings/files?date=" + encodeURIComponent(date), true);
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          var files = JSON.parse(xhr.responseText).files;
+          var sel = document.getElementById("videoSelect");
+          sel.innerHTML = '<option value="">-- انتخاب ساعت ضبط --</option>';
+          for (var i = 0; i < files.length; i++) {
+            sel.innerHTML += '<option value="' + files[i] + '">' + files[i] + '</option>';
+          }
+        }
+      };
+      xhr.send();
+    }
+
+    function playSelectedVideo() {
+      var date = document.getElementById("dateSelect").value;
+      var file = document.getElementById("videoSelect").value;
+      if (!date || !file) return;
+      var v = document.getElementById("playbackVideo");
+      v.src = "/api/recordings/stream?date=" + encodeURIComponent(date) + "&file=" + encodeURIComponent(file);
+      v.play();
+    }
+
+    setInterval(refreshStatus, 2500);
+    refreshStatus();
+    loadDates();
+  </script>
+</body>
+</html>
